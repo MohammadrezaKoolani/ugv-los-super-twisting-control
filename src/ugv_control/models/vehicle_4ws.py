@@ -22,7 +22,7 @@ def build_default_4ws_vehicle() -> VehicleParams:
         X_u_abs_u=-1.0,
 
         # Guidance parameters
-        lookahead_distance=1.5,
+        lookahead_distance=4.0,
         acceptance_radius=2.5,
 
         # Surge controller gains/limits
