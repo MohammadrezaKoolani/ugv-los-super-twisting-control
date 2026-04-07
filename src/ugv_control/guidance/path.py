@@ -33,3 +33,4 @@ def get_segment(path: Path, segment_index: int) -> Segment:
     start = path.waypoint(segment_index)
     end = path.waypoint(segment_index + 1)
     return Segment(start=start, end=end, index=segment_index)
+
