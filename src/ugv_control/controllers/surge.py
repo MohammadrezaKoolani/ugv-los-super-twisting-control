@@ -1,62 +1,95 @@
 from __future__ import annotations
 
-from ugv_control.models.states import DisturbanceEstimate, SurgeControllerConfig, VehicleParams, VehicleState
+import math
+
+from ugv_control.models.states import SurgeControllerState, UGVState
+from ugv_control.models.vehicle_base import VehicleParams
 from ugv_control.types import SurgeControlOutput
-from ugv_control.utils import safe_sqrt_abs_signed, sat
 
 
-class SurgeSpeedController:
+def sign(value: float) -> float:
     """
-    Super-twisting surge speed controller based on Section 3.1.1.
+    Sign function with sign(0) = 0.
     """
+    if value > 0.0:
+        return 1.0
+    if value < 0.0:
+        return -1.0
+    return 0.0
 
-    def __init__(self, config: SurgeControllerConfig) -> None:
-        self.config = config
-        self.tau_x1 = 0.0
 
-    def reset(self) -> None:
-        self.tau_x1 = 0.0
+def saturate(value: float, limit: float) -> float:
+    """
+    Symmetric saturation:
+        sat_limit(value)
+    """
+    if limit <= 0.0:
+        raise ValueError("limit must be positive.")
 
-    def compute(
-        self,
-        state: VehicleState,
-        params: VehicleParams,
-        u_d: float,
-        u_d_dot: float = 0.0,
-        disturbance: DisturbanceEstimate | None = None,
-        dt: float = 0.01,
-    ) -> SurgeControlOutput:
-        if disturbance is None:
-            disturbance = DisturbanceEstimate()
+    if value > limit:
+        return limit
+    if value < -limit:
+        return -limit
+    return value
 
-        u_tilde = state.u - u_d
 
-        # Eq. (18)
-        phi_x = (
-            -params.m * u_d_dot
-            + params.m * state.v * state.r
-            + params.X_u_abs_u * state.u * abs(state.u)
-            + disturbance.d_x
-        )
+def update_surge_controller(
+    state: UGVState,
+    controller_state: SurgeControllerState,
+    params: VehicleParams,
+    dt: float,
+) -> tuple[SurgeControlOutput, SurgeControllerState]:
+    """
+    Update the super-twisting surge controller.
 
-        # Use the closed-loop ideal relation to form sigma_u approximately.
-        # sigma_u = m * u_tilde_dot + k_x |u_tilde|^(1/2) sgn(u_tilde)
-        # Since u_tilde_dot is not always directly measured, we expose an approximate sigma_u
-        # as phi_x + control_internal before saturation-like compensation.
-        sqrt_term = safe_sqrt_abs_signed(u_tilde)
+    Implements:
+      - Eq. (11): u_tilde = u - u_d
+      - Eq. (16): tau_xc and tau_x1_dot
 
-        # Eq. (16) internal update law
-        raw_control = -self.config.k_x * sqrt_term + self.tau_x1
-        tau_x_c = sat(raw_control, self.config.tau_x_max)
+    Parameters
+    ----------
+    state : UGVState
+        Current vehicle state.
+    controller_state : SurgeControllerState
+        Internal surge controller state.
+    params : VehicleParams
+        Controller and vehicle parameters.
+    dt : float
+        Controller time step [s].
 
-        if abs(tau_x_c) < self.config.tau_x_max:
-            self.tau_x1 += -self.config.k_x1 * (1.0 if u_tilde > 0.0 else -1.0 if u_tilde < 0.0 else 0.0) * dt
+    Returns
+    -------
+    tuple[SurgeControlOutput, SurgeControllerState]
+        The controller output and the updated controller state.
+    """
+    if dt <= 0.0:
+        raise ValueError("dt must be positive.")
 
-        sigma_u = phi_x + tau_x_c
+    # Eq. (11): surge speed tracking error
+    u_tilde = state.u - params.desired_speed
 
-        return SurgeControlOutput(
-            tau_x_c=tau_x_c,
-            sigma_u=sigma_u,
-            u_tilde=u_tilde,
-            phi_x=phi_x,
-        )
+    # Eq. (16): continuous super-twisting term before saturation
+    raw_tau_xc = (
+        -params.k_x * math.sqrt(abs(u_tilde)) * sign(u_tilde)
+        + controller_state.tau_x1
+    )
+
+    # Eq. (16): saturated machine surge command
+    tau_xc = saturate(raw_tau_xc, params.tau_x_max)
+
+    # Eq. (16): internal state derivative
+    if abs(tau_xc) >= params.tau_x_max:
+        tau_x1_dot = 0.0
+    else:
+        tau_x1_dot = -params.k_x1 * sign(u_tilde)
+
+    # Discrete-time integration of tau_x1
+    new_tau_x1 = controller_state.tau_x1 + tau_x1_dot * dt
+
+    new_state = SurgeControllerState(tau_x1=new_tau_x1)
+    output = SurgeControlOutput(
+        tau_xc=tau_xc,
+        u_tilde=u_tilde,
+    )
+
+    return output, new_state
