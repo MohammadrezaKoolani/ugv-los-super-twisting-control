@@ -28,26 +28,27 @@ def simulate_step_dynamic(
     Simple closed-loop vehicle simulation used only for controller testing.
 
     This is still a command-level plant, not the real heavy-truck plant:
-      - tau_xc   is treated as a desired longitudinal command
+      - tau_xc is treated as a normalized throttle-like command
       - tau_psi_c is treated as a desired yaw-rate command
-
-    The 8-wheel mapper is computed in the loop and logged, but the
-    simulator below still propagates the same simplified state model.
-    That lets you verify:
-      1) the controller pipeline still works
-      2) the new 8-wheel mapping produces reasonable actuator commands
-
-    Later, when you connect the real truck, this simulator will be replaced
-    by the real vehicle interface, and truck_cmd will be sent directly.
     """
     if dt <= 0.0:
         raise ValueError("dt must be positive.")
 
     a_u = 1.5
-    a_r = 2.5
+    a_r = 12.0
 
-    u_dot = a_u * (tau_xc - state.u)
-    r_dot = a_r * (tau_psi_c - state.r)
+    # Interpret tau_xc as normalized command in [0, 1]
+    u_max_sim = 8.0
+    tau_xc_clamped = max(0.0, min(1.0, tau_xc))
+    u_ref = tau_xc_clamped * u_max_sim
+
+    # Interpret tau_psi_c as normalized steering/yaw command in [-1, 1]
+    r_max_sim = 1.2
+    tau_psi_c_clamped = max(-1.0, min(1.0, tau_psi_c))
+    r_ref = tau_psi_c_clamped * r_max_sim
+
+    u_dot = a_u * (u_ref - state.u)
+    r_dot = a_r * (r_ref - state.r)
 
     new_u = state.u + u_dot * dt
     new_r = state.r + r_dot * dt
@@ -97,7 +98,7 @@ def main() -> None:
     waypoint_progress = WaypointProgress(segment_index=0)
 
     dt = 0.01
-    steps = 2700
+    steps = 1100
 
     time_hist: list[float] = []
     x_hist: list[float] = []

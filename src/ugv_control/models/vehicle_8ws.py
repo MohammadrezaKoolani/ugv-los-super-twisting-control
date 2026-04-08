@@ -18,7 +18,7 @@ def build_default_8ws_vehicle() -> VehicleParams:
 
         k_x=0.075,
         k_x1=0.125,
-        tau_x_max=10.0,
+        tau_x_max=1.0,
 
         k_r=1.0,
         k_psi=0.1,
