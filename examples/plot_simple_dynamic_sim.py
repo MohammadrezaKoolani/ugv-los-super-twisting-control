@@ -5,8 +5,9 @@ import math
 import matplotlib.pyplot as plt
 
 from ugv_control.controllers.manager import step_path_following_controller
+from ugv_control.interfaces.eight_wheel_mapper import map_control_to_eight_wheel
 from ugv_control.models.states import ControllerState, UGVState, WaypointProgress
-from ugv_control.models.vehicle_4ws import build_default_4ws_vehicle
+from ugv_control.models.vehicle_8ws import build_default_8ws_vehicle
 from ugv_control.types import Path, Waypoint
 
 
@@ -24,20 +25,20 @@ def simulate_step_dynamic(
     dt: float,
 ) -> UGVState:
     """
-    Command-level vehicle simulation.
+    Simple closed-loop vehicle simulation used only for controller testing.
 
-    This is not a force/moment plant. Instead:
-      - tau_xc is treated as a desired longitudinal command
+    This is still a command-level plant, not the real heavy-truck plant:
+      - tau_xc   is treated as a desired longitudinal command
       - tau_psi_c is treated as a desired yaw-rate command
 
-    The vehicle responds with first-order dynamics:
-      u_dot = a_u * (tau_xc - u)
-      r_dot = a_r * (tau_psi_c - r)
+    The 8-wheel mapper is computed in the loop and logged, but the
+    simulator below still propagates the same simplified state model.
+    That lets you verify:
+      1) the controller pipeline still works
+      2) the new 8-wheel mapping produces reasonable actuator commands
 
-    Then kinematics are propagated by:
-      x_dot = u cos(psi)
-      y_dot = u sin(psi)
-      psi_dot = r
+    Later, when you connect the real truck, this simulator will be replaced
+    by the real vehicle interface, and truck_cmd will be sent directly.
     """
     if dt <= 0.0:
         raise ValueError("dt must be positive.")
@@ -80,7 +81,8 @@ def main() -> None:
         ]
     )
 
-    params = build_default_4ws_vehicle()
+    # Use the heavy 8-wheel truck parameters
+    params = build_default_8ws_vehicle()
 
     state = UGVState(
         x_n=0.0,
@@ -94,8 +96,8 @@ def main() -> None:
     controller_state = ControllerState()
     waypoint_progress = WaypointProgress(segment_index=0)
 
-    dt = 0.02
-    steps = 1600
+    dt = 0.01
+    steps = 2700
 
     time_hist: list[float] = []
     x_hist: list[float] = []
@@ -110,6 +112,14 @@ def main() -> None:
     tau_psi_hist: list[float] = []
     seg_hist: list[int] = []
 
+    # 8-wheel mapped actuator histories
+    steer_axle1_hist: list[float] = []
+    steer_axle2_hist: list[float] = []
+    tq_3l_hist: list[float] = []
+    tq_3r_hist: list[float] = []
+    tq_4l_hist: list[float] = []
+    tq_4r_hist: list[float] = []
+
     for step in range(steps):
         result = step_path_following_controller(
             state=state,
@@ -118,6 +128,14 @@ def main() -> None:
             waypoint_progress=waypoint_progress,
             path=path,
             dt=dt,
+        )
+
+        # This is the new step:
+        # convert high-level Karl-style controller outputs into real
+        # 8-wheel truck actuator commands.
+        truck_cmd = map_control_to_eight_wheel(
+            control=result.control,
+            params=params,
         )
 
         time_hist.append(step * dt)
@@ -133,6 +151,15 @@ def main() -> None:
         tau_psi_hist.append(result.control.tau_psi_c)
         seg_hist.append(result.waypoint_progress.segment_index)
 
+        steer_axle1_hist.append(truck_cmd.steer_axle1)
+        steer_axle2_hist.append(truck_cmd.steer_axle2)
+        tq_3l_hist.append(truck_cmd.torque_axle3_left)
+        tq_3r_hist.append(truck_cmd.torque_axle3_right)
+        tq_4l_hist.append(truck_cmd.torque_axle4_left)
+        tq_4r_hist.append(truck_cmd.torque_axle4_right)
+
+        # For now, the simulator still uses the high-level controller outputs.
+        # That is okay for development. Later, the real truck will receive truck_cmd.
         state = simulate_step_dynamic(
             state=state,
             tau_xc=result.control.tau_xc,
@@ -182,7 +209,7 @@ def main() -> None:
     ax4.plot(time_hist, tau_psi_hist, label="tau_psi_c")
     ax4.set_xlabel("time [s]")
     ax4.set_ylabel("control command")
-    ax4.set_title("Controller Outputs")
+    ax4.set_title("High-Level Controller Outputs")
     ax4.legend()
     ax4.grid(True)
 
@@ -195,6 +222,28 @@ def main() -> None:
     ax5.set_title("Heading Tracking")
     ax5.legend()
     ax5.grid(True)
+
+    fig6 = plt.figure()
+    ax6 = fig6.add_subplot(111)
+    ax6.plot(time_hist, steer_axle1_hist, label="steer axle 1")
+    ax6.plot(time_hist, steer_axle2_hist, label="steer axle 2")
+    ax6.set_xlabel("time [s]")
+    ax6.set_ylabel("steering angle [rad]")
+    ax6.set_title("Mapped 8-Wheel Steering Commands")
+    ax6.legend()
+    ax6.grid(True)
+
+    fig7 = plt.figure()
+    ax7 = fig7.add_subplot(111)
+    ax7.plot(time_hist, tq_3l_hist, label="axle3 left")
+    ax7.plot(time_hist, tq_3r_hist, label="axle3 right")
+    ax7.plot(time_hist, tq_4l_hist, label="axle4 left")
+    ax7.plot(time_hist, tq_4r_hist, label="axle4 right")
+    ax7.set_xlabel("time [s]")
+    ax7.set_ylabel("wheel torque [N m]")
+    ax7.set_title("Mapped 8-Wheel Drive Torques")
+    ax7.legend()
+    ax7.grid(True)
 
     plt.show()
 
