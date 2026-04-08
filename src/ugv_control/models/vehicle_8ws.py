@@ -5,37 +5,31 @@ from ugv_control.models.vehicle_base import VehicleParams
 
 def build_default_8ws_vehicle() -> VehicleParams:
     """
-    Create a default parameter set for an 8-wheel vehicle.
-
-    These values are initial placeholders and should be replaced or tuned
-    for the real 8-wheel platform.
-
-    Returns
-    -------
-    VehicleParams
-        Parameter set used by guidance and control modules.
+    Heavy 8-wheel dump truck parameters for Karl-style LOS + super-twisting control.
     """
     return VehicleParams(
-        # Dynamic/model parameters
-        m=25.0,
-        I_z=2.5,
-        X_u_abs_u=-1.0,
+        # Karl-style dynamic parameters
+        m=25000.0,
+        I_z=98000.0,
+        X_u_abs_u=-150.0,   # initial guess, tune later
 
-        # Guidance parameters
-        lookahead_distance=1.5,
-        acceptance_radius=2.5,
+        # LOS guidance
+        lookahead_distance=6.0,
+        acceptance_radius=4.0,
 
-        # Surge controller gains/limits
+        # Surge controller
         k_x=0.075,
         k_x1=0.125,
-        tau_x_max=100.0,
+        tau_x_max=1.0,      # normalized drive command
 
-        # Heading controller gains/limits
+        # Heading controller
         k_r=1.0,
         k_psi=0.1,
         k_psi1=0.2,
-        tau_psi_max=20.0,
+        tau_psi_max=1.0,    # normalized steering/yaw command
 
-        # Desired forward speed
-        desired_speed=2.0,
+        # Desired speed
+        desired_speed=5.0,
     )
+
+
