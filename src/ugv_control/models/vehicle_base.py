@@ -35,27 +35,41 @@ class VehicleParams:
       - desired_speed : u_d from Eq. (11)
     """
     # Dynamic/model parameters
+    # Karl-style dynamic/model parameters
     m: float
     I_z: float
     X_u_abs_u: float
 
-    # Guidance parameters
+    # LOS guidance
     lookahead_distance: float
     acceptance_radius: float
 
-    # Surge controller gains/limits
+    # Surge controller
     k_x: float
     k_x1: float
     tau_x_max: float
 
-    # Heading controller gains/limits
+    # Heading controller
     k_r: float
     k_psi: float
     k_psi1: float
     tau_psi_max: float
 
-    # Operating point
+    # Desired speed
     desired_speed: float = 0.0
+
+    # 8-wheel truck geometry / mapping parameters
+    L1: float = 0.0
+    L2: float = 0.0
+    L3: float = 0.0
+    L4: float = 0.0
+    track_width: float = 0.0
+
+    max_steer_axle1: float = 0.0
+    max_steer_axle2: float = 0.0
+
+    max_drive_torque_per_wheel: float = 0.0
+    num_driven_wheels: int = 4
 
     def __post_init__(self) -> None:
         if self.m <= 0.0:
@@ -80,3 +94,5 @@ class VehicleParams:
             raise ValueError("k_psi1 must be positive.")
         if self.tau_psi_max <= 0.0:
             raise ValueError("tau_psi_max must be positive.")
+        
+        
