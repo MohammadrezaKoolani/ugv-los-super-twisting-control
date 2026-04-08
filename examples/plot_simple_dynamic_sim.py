@@ -95,7 +95,7 @@ def main() -> None:
     waypoint_progress = WaypointProgress(segment_index=0)
 
     dt = 0.02
-    steps = 1000
+    steps = 1600
 
     time_hist: list[float] = []
     x_hist: list[float] = []
@@ -201,3 +201,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+    
