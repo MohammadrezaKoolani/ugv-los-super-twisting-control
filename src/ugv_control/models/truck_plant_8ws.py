@@ -21,17 +21,11 @@ def simulate_step_truck_karl_style(
     d_psi: float = 0.0,
 ) -> UGVState:
     """
-    Karl-style 3-DOF planar truck plant.
+    Karl-style 3-DOF planar truck plant with lumped damping terms
+    for practical heavy-truck simulation.
 
     State:
         x_n, y_n, psi, u, v_sway, r
-
-    Inputs:
-        tau_xc, tau_psi_c
-
-    Model style:
-        eta_dot = R(psi) * nu
-        M nu_dot + C(nu) nu + D(nu) nu = tau + d
     """
     if dt <= 0.0:
         raise ValueError("dt must be positive.")
@@ -52,10 +46,24 @@ def simulate_step_truck_karl_style(
     y_dot = u * math.sin(psi) + v * math.cos(psi)
     psi_dot = r
 
-    # Karl-style control-oriented dynamics
-    u_dot = (tau_xc + d_x + m * v * r + X_u_abs_u * u * abs(u)) / m
-    v_dot = (d_y - m * u * r) / m
-    r_dot = (tau_psi_c + d_psi) / I_z
+    # Normalized controller outputs -> effective plant inputs
+    tau_xc_clamped = max(-1.0, min(1.0, tau_xc))
+    tau_psi_c_clamped = max(-1.0, min(1.0, tau_psi_c))
+
+    F_x_max_sim = 12000.0    # [N]
+    M_z_max_sim = 18000.0    # [N m]
+
+    tau_x_eff = tau_xc_clamped * F_x_max_sim
+    tau_psi_eff = tau_psi_c_clamped * M_z_max_sim
+
+    # Lumped damping for practical simulation
+    Y_v_sim = -15000.0       # [N / (m/s)]
+    N_r_sim = -80000.0       # [N m / (rad/s)]
+
+    # Karl-style control-oriented dynamics with lumped damping
+    u_dot = (tau_x_eff + d_x + m * v * r + X_u_abs_u * u * abs(u)) / m
+    v_dot = (Y_v_sim * v + d_y - m * u * r) / m
+    r_dot = (tau_psi_eff + N_r_sim * r + d_psi) / I_z
 
     return UGVState(
         x_n=x_n + x_dot * dt,

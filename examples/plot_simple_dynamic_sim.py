@@ -9,68 +9,13 @@ from ugv_control.interfaces.eight_wheel_mapper import map_control_to_eight_wheel
 from ugv_control.models.states import ControllerState, UGVState, WaypointProgress
 from ugv_control.models.vehicle_8ws import build_default_8ws_vehicle
 from ugv_control.types import Path, Waypoint
-
+from ugv_control.models.truck_plant_8ws import simulate_step_truck_karl_style
 
 def wrap_angle(angle: float) -> float:
     """
     Wrap angle to [-pi, pi].
     """
     return math.atan2(math.sin(angle), math.cos(angle))
-
-
-def simulate_step_dynamic(
-    state: UGVState,
-    tau_xc: float,
-    tau_psi_c: float,
-    dt: float,
-) -> UGVState:
-    """
-    Simple closed-loop vehicle simulation used only for controller testing.
-
-    This is still a command-level plant, not the real heavy-truck plant:
-      - tau_xc is treated as a normalized throttle-like command
-      - tau_psi_c is treated as a desired yaw-rate command
-    """
-    if dt <= 0.0:
-        raise ValueError("dt must be positive.")
-
-    a_u = 1.5
-    a_r = 12.0
-
-    # Interpret tau_xc as normalized command in [0, 1]
-    u_max_sim = 8.0
-    tau_xc_clamped = max(0.0, min(1.0, tau_xc))
-    u_ref = tau_xc_clamped * u_max_sim
-
-    # Interpret tau_psi_c as normalized steering/yaw command in [-1, 1]
-    r_max_sim = 1.2
-    tau_psi_c_clamped = max(-1.0, min(1.0, tau_psi_c))
-    r_ref = tau_psi_c_clamped * r_max_sim
-
-    u_dot = a_u * (u_ref - state.u)
-    r_dot = a_r * (r_ref - state.r)
-
-    new_u = state.u + u_dot * dt
-    new_r = state.r + r_dot * dt
-    new_v_sway = 0.0
-
-    x_dot = new_u * math.cos(state.psi)
-    y_dot = new_u * math.sin(state.psi)
-    psi_dot = new_r
-
-    new_x = state.x_n + x_dot * dt
-    new_y = state.y_n + y_dot * dt
-    new_psi = wrap_angle(state.psi + psi_dot * dt)
-
-    return UGVState(
-        x_n=new_x,
-        y_n=new_y,
-        psi=new_psi,
-        u=new_u,
-        v_sway=new_v_sway,
-        r=new_r,
-    )
-
 
 
 def has_passed_final_waypoint_along_last_segment(
@@ -229,12 +174,13 @@ def main() -> None:
 
         # For now, the simulator still uses the high-level controller outputs.
         # That is okay for development. Later, the real truck will receive truck_cmd.
-        state = simulate_step_dynamic(
+        state = simulate_step_truck_karl_style(
             state=state,
             tau_xc=result.control.tau_xc,
             tau_psi_c=result.control.tau_psi_c,
+            params=params,
             dt=dt,
-        )
+)
 
         controller_state = result.controller_state
         waypoint_progress = result.waypoint_progress
