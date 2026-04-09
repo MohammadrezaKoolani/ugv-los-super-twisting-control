@@ -71,6 +71,20 @@ def simulate_step_dynamic(
         r=new_r,
     )
 
+def has_reached_final_waypoint(
+    state: UGVState,
+    path: Path,
+    position_tolerance: float,
+) -> bool:
+    """
+    Return True if the vehicle is close enough to the final waypoint.
+    """
+    final_wp = path.waypoints[-1]
+    dx = state.x_n - final_wp.x
+    dy = state.y_n - final_wp.y
+    dist = math.hypot(dx, dy)
+    return dist <= position_tolerance
+
 
 def main() -> None:
     path = Path(
@@ -98,7 +112,9 @@ def main() -> None:
     waypoint_progress = WaypointProgress(segment_index=0)
 
     dt = 0.01
-    steps = 1100
+    max_time = 60.0
+    position_tolerance = params.acceptance_radius
+    time_now = 0.0
 
     time_hist: list[float] = []
     x_hist: list[float] = []
@@ -121,7 +137,7 @@ def main() -> None:
     tq_4l_hist: list[float] = []
     tq_4r_hist: list[float] = []
 
-    for step in range(steps):
+    while time_now <= max_time:
         result = step_path_following_controller(
             state=state,
             params=params,
@@ -139,7 +155,7 @@ def main() -> None:
             params=params,
         )
 
-        time_hist.append(step * dt)
+        time_hist.append(time_now)
         x_hist.append(state.x_n)
         y_hist.append(state.y_n)
         psi_hist.append(state.psi)
@@ -170,6 +186,15 @@ def main() -> None:
 
         controller_state = result.controller_state
         waypoint_progress = result.waypoint_progress
+
+        time_now += dt
+
+        if has_reached_final_waypoint(
+            state=state,
+            path=path,
+            position_tolerance=position_tolerance,
+        ):
+            break
 
     fig1 = plt.figure()
     ax1 = fig1.add_subplot(111)
