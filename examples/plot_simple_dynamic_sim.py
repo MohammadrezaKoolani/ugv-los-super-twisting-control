@@ -71,20 +71,56 @@ def simulate_step_dynamic(
         r=new_r,
     )
 
-def has_reached_final_waypoint(
+
+
+def has_passed_final_waypoint_along_last_segment(
+    state: UGVState,
+    path: Path,
+) -> bool:
+    """
+    Return True if the vehicle has passed the final waypoint when projected
+    onto the last path segment direction.
+    """
+    if len(path.waypoints) < 2:
+        return False
+
+    wp_prev = path.waypoints[-2]
+    wp_final = path.waypoints[-1]
+
+    seg_dx = wp_final.x - wp_prev.x
+    seg_dy = wp_final.y - wp_prev.y
+    seg_len_sq = seg_dx * seg_dx + seg_dy * seg_dy
+
+    if seg_len_sq <= 1e-12:
+        return False
+
+    # projection of vehicle position onto last segment direction
+    veh_dx = state.x_n - wp_prev.x
+    veh_dy = state.y_n - wp_prev.y
+    proj = (veh_dx * seg_dx + veh_dy * seg_dy) / seg_len_sq
+
+    # proj > 1 means vehicle is past the final waypoint along segment direction
+    return proj >= 1.0
+
+def should_stop_simulation(
     state: UGVState,
     path: Path,
     position_tolerance: float,
 ) -> bool:
     """
-    Return True if the vehicle is close enough to the final waypoint.
+    Stop if the vehicle is near the final waypoint, or if it has already
+    passed the final waypoint along the final segment direction.
     """
     final_wp = path.waypoints[-1]
-    dx = state.x_n - final_wp.x
-    dy = state.y_n - final_wp.y
-    dist = math.hypot(dx, dy)
-    return dist <= position_tolerance
+    dist = math.hypot(state.x_n - final_wp.x, state.y_n - final_wp.y)
 
+    if dist <= position_tolerance:
+        return True
+
+    if has_passed_final_waypoint_along_last_segment(state, path):
+        return True
+
+    return False
 
 def main() -> None:
     path = Path(
@@ -113,7 +149,8 @@ def main() -> None:
 
     dt = 0.01
     max_time = 60.0
-    position_tolerance = params.acceptance_radius
+    position_tolerance = 0.5
+    speed_tolerance = 0.2
     time_now = 0.0
 
     time_hist: list[float] = []
@@ -128,6 +165,7 @@ def main() -> None:
     tau_x_hist: list[float] = []
     tau_psi_hist: list[float] = []
     seg_hist: list[int] = []
+    desired_speed_hist: list[float] = []
 
     # 8-wheel mapped actuator histories
     steer_axle1_hist: list[float] = []
@@ -137,7 +175,20 @@ def main() -> None:
     tq_4l_hist: list[float] = []
     tq_4r_hist: list[float] = []
 
+    #tore the original desired speed once
+    base_desired_speed = params.desired_speed
+
     while time_now <= max_time:
+
+        final_wp = path.waypoints[-1]
+        dist_to_goal = math.hypot(state.x_n - final_wp.x, state.y_n - final_wp.y)
+
+        params.desired_speed = base_desired_speed
+        if dist_to_goal < 8.0:
+            params.desired_speed = 1.0
+        if dist_to_goal < 3.0:
+            params.desired_speed = 0.3
+
         result = step_path_following_controller(
             state=state,
             params=params,
@@ -167,6 +218,7 @@ def main() -> None:
         tau_x_hist.append(result.control.tau_xc)
         tau_psi_hist.append(result.control.tau_psi_c)
         seg_hist.append(result.waypoint_progress.segment_index)
+        desired_speed_hist.append(params.desired_speed)
 
         steer_axle1_hist.append(truck_cmd.steer_axle1)
         steer_axle2_hist.append(truck_cmd.steer_axle2)
@@ -189,12 +241,18 @@ def main() -> None:
 
         time_now += dt
 
-        if has_reached_final_waypoint(
+        if should_stop_simulation(
             state=state,
             path=path,
             position_tolerance=position_tolerance,
         ):
             break
+
+
+
+    #===========
+    # Plotting
+    #===========
 
     fig1 = plt.figure()
     ax1 = fig1.add_subplot(111)
@@ -222,7 +280,7 @@ def main() -> None:
     fig3 = plt.figure()
     ax3 = fig3.add_subplot(111)
     ax3.plot(time_hist, u_hist, label="u")
-    ax3.axhline(params.desired_speed, linestyle="--", label="desired speed")
+    ax3.plot(time_hist, desired_speed_hist, linestyle="--", label="desired speed")
     ax3.set_xlabel("time [s]")
     ax3.set_ylabel("surge speed [m/s]")
     ax3.set_title("Speed Response")
