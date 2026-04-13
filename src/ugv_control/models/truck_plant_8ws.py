@@ -46,11 +46,7 @@ def simulate_step_truck_karl_style(
     The model is intentionally control-oriented:
       - surge comes from summed wheel torques and quadratic drag
       - yaw comes from an effective steering angle and first-order yaw response
-      - sway is lumped as a first-order response tied to steering/yaw motion
-
-    During transition, this function supports two modes:
-      1) preferred mode: pass `command=EightWheelCommand(...)`
-      2) fallback mode:  use high-level `tau_xc`, `tau_psi_c`
+      - sway is lumped as a first-order response tied to steering
     """
     if dt <= 0.0:
         raise ValueError("dt must be positive.")
@@ -66,31 +62,19 @@ def simulate_step_truck_karl_style(
     v = state.v_sway
     r = state.r
 
-    # ------------------------------------------------------------------
-    # Truck geometry
-    # ------------------------------------------------------------------
+    # Equivalent front / rear geometry for a lumped heavy-truck model
     L_front = 0.5 * (params.L1 + params.L2)
     L_rear = 0.5 * (abs(params.L3) + abs(params.L4))
     L_eq = max(L_front + L_rear, 1e-6)
 
-    # ------------------------------------------------------------------
-    # Practical / lumped parameters
-    # These are intentionally stiffness-free.
-    # ------------------------------------------------------------------
-    wheel_radius = getattr(params, "wheel_radius", 0.58)
+    wheel_radius = params.wheel_radius
+    yaw_time_constant = params.yaw_time_constant
+    sway_time_constant = params.sway_time_constant
+    beta_gain = params.beta_gain
 
-    # First-order yaw response to commanded curvature
-    yaw_time_constant = getattr(params, "yaw_time_constant", 0.7)
-
-    # First-order sway response
-    sway_time_constant = getattr(params, "sway_time_constant", 1.0)
-
-    # How strongly steering creates side-slip / sway reference
-    beta_gain = getattr(params, "beta_gain", 0.85)
-
-    # ------------------------------------------------------------------
-    # Actuator interpretation
-    # ------------------------------------------------------------------
+    # ------------------------------------------------------------
+    # Interpret actuator commands
+    # ------------------------------------------------------------
     if command is not None:
         delta1 = command.steer_axle1
         delta2 = command.steer_axle2
@@ -124,33 +108,28 @@ def simulate_step_truck_karl_style(
             * max(params.num_driven_wheels, 1)
         )
 
-    # Effective front steering angle for a two-front-axle truck
+    # Effective dual-front steering angle
     front_denom = max(params.L1 + params.L2, 1e-6)
     delta_eff = (params.L1 * delta1 + params.L2 * delta2) / front_denom
-
-    # Avoid tan() blow-up near 90 degrees
     delta_eff = clamp(delta_eff, -1.2, 1.2)
 
-    # Convert total drive torque to total longitudinal force
+    # Drive torque -> total longitudinal force
     F_x = total_drive_torque / max(wheel_radius, 1e-6)
 
-    # ------------------------------------------------------------------
+    # ------------------------------------------------------------
     # Kinematics
-    # ------------------------------------------------------------------
+    # ------------------------------------------------------------
     x_dot = u * math.cos(psi) - v * math.sin(psi)
     y_dot = u * math.sin(psi) + v * math.cos(psi)
     psi_dot = r
 
-    # ------------------------------------------------------------------
-    # UGV-style heavy-truck dynamics
-    # ------------------------------------------------------------------
-    # Surge:
-    # Same Karl-style structure, but now the input comes from wheel torque.
+    # ------------------------------------------------------------
+    # Lumped dynamics
+    # ------------------------------------------------------------
+    # Surge
     u_dot = (F_x + d_x + m * v * r + X_u_abs_u * u * abs(u)) / m
 
-    # Yaw:
-    # Desired yaw rate from truck geometry (kinematic curvature),
-    # then first-order response toward it.
+    # Yaw: first-order response toward kinematic yaw-rate command
     if abs(math.cos(delta_eff)) < 1e-6:
         r_cmd = 0.0
     else:
@@ -158,8 +137,7 @@ def simulate_step_truck_karl_style(
 
     r_dot = (r_cmd - r) / max(yaw_time_constant, 1e-6) + d_psi / I_z
 
-    # Sway:
-    # No tire stiffness model. Use a lumped side-slip reference driven by steering.
+    # Sway: lumped side-slip response without tire stiffnesses
     beta_ref = math.atan(beta_gain * (L_rear / L_eq) * math.tan(delta_eff))
     v_ref = u * math.sin(beta_ref)
 

@@ -100,5 +100,12 @@ class VehicleParams:
             raise ValueError("k_psi1 must be positive.")
         if self.tau_psi_max <= 0.0:
             raise ValueError("tau_psi_max must be positive.")
-        
+        if self.wheel_radius <= 0.0:
+            raise ValueError("wheel_radius must be positive.")
+        if self.yaw_time_constant <= 0.0:
+            raise ValueError("yaw_time_constant must be positive.")
+        if self.sway_time_constant <= 0.0:
+            raise ValueError("sway_time_constant must be positive.")
+        if self.beta_gain < 0.0:
+            raise ValueError("beta_gain must be nonnegative.")
         
