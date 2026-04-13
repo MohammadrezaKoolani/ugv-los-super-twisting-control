@@ -70,10 +70,17 @@ def should_stop_simulation(
 def main() -> None:
     path = Path(
         waypoints=[
-            Waypoint(x=0.0, y=0.0),
-            Waypoint(x=15.0, y=0.0),
-            Waypoint(x=30.0, y=0.0),
-            Waypoint(x=45.0, y=5.0),
+            Waypoint(x=0.0,   y=0.0),
+            Waypoint(x=50.0,  y=0.0),
+            Waypoint(x=100.0, y=10.0),
+            Waypoint(x=150.0, y=10.0),
+            Waypoint(x=200.0, y=0.0),
+            Waypoint(x=250.0, y=-10.0),
+            Waypoint(x=300.0, y=-10.0),
+            Waypoint(x=350.0, y=0.0),
+            Waypoint(x=400.0, y=10.0),
+            Waypoint(x=450.0, y=10.0),
+            Waypoint(x=500.0, y=0.0),
         ]
     )
 
@@ -93,7 +100,7 @@ def main() -> None:
     waypoint_progress = WaypointProgress(segment_index=0)
 
     dt = 0.01
-    max_time = 60.0
+    max_time = 1000.0
     position_tolerance = 0.5
     time_now = 0.0
 
@@ -173,15 +180,15 @@ def main() -> None:
         tq_4l_hist.append(truck_cmd.torque_axle4_left)
         tq_4r_hist.append(truck_cmd.torque_axle4_right)
 
-        # For now, the simulator still uses the high-level controller outputs.
-        # That is okay for development. Later, the real truck will receive truck_cmd.
+        # Drive the truck plant using the mapped 8-wheel high-level command.
         state = simulate_step_truck_karl_style(
             state=state,
             tau_xc=result.control.tau_xc,
             tau_psi_c=result.control.tau_psi_c,
             params=params,
             dt=dt,
-)
+            command=truck_cmd,
+        )
 
         controller_state = result.controller_state
         waypoint_progress = result.waypoint_progress

@@ -69,7 +69,13 @@ class VehicleParams:
     max_steer_axle2: float = 0.0
 
     max_drive_torque_per_wheel: float = 0.0
-    num_driven_wheels: int = 4
+    num_driven_wheels: int = 0
+
+    # High-level lumped truck/UGV-style plant parameters
+    wheel_radius: float = 0.58
+    yaw_time_constant: float = 0.7
+    sway_time_constant: float = 1.0
+    beta_gain: float = 0.85
 
     def __post_init__(self) -> None:
         if self.m <= 0.0:
