@@ -36,6 +36,11 @@ def build_default_8ws_vehicle() -> VehicleParams:
         max_steer_axle1=0.45,
         max_steer_axle2=0.35,
 
-        max_drive_torque_per_wheel=8000.0,
+        max_drive_torque_per_wheel=1500.0,
         num_driven_wheels=4,
+
+        wheel_radius=0.58,
+        yaw_time_constant=0.9,
+        sway_time_constant=1.2,
+        beta_gain=0.75,
 )
