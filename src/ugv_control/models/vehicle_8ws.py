@@ -43,4 +43,4 @@ def build_default_8ws_vehicle() -> VehicleParams:
         yaw_time_constant=0.9,
         sway_time_constant=1.2,
         beta_gain=0.75,
-)
+    )
