@@ -21,27 +21,20 @@ def compute_los_guidance(
     """
     Compute LOS guidance quantities for the active path segment.
 
-    This implementation follows the paper equations:
+    High-level simplified LOS form:
       - alpha_k from Eq. (21)
       - e from Eq. (24)
-      - e_dot from Eq. (27)
-      - chi_d from Eq. (29)
-      - psi_d from Eq. (33), using beta = 0
-      - r_d from Eq. (41), using beta_dot = 0
+      - e_dot from the simplified UGV-style form
+      - psi_d = alpha_k + atan2(-e, Delta)
+      - r_d   = -(Delta / (e^2 + Delta^2)) * e_dot
 
-    Parameters
-    ----------
-    state : UGVState
-        Current vehicle state.
-    segment : Segment
-        Active path segment from waypoint k to waypoint k+1.
-    lookahead_distance : float
-        LOS lookahead distance Delta.
+    Notes
+    -----
+    For the current high-level truck implementation, we intentionally keep:
+      - beta = 0
+      - beta_dot = 0
 
-    Returns
-    -------
-    LOSGuidanceOutput
-        Structured LOS guidance result.
+    So there is no tire-stiffness-based slip compensation here.
     """
     if lookahead_distance <= 0.0:
         raise ValueError("lookahead_distance must be positive.")
@@ -60,25 +53,23 @@ def compute_los_guidance(
         + (state.y_n - y_k) * math.cos(alpha_k)
     )
 
-    # Eq. (26): inertial velocity components
-    x_n_dot = state.u * math.cos(state.psi) - state.v_sway * math.sin(state.psi)
-    y_n_dot = state.u * math.sin(state.psi) + state.v_sway * math.cos(state.psi)
+    # Simplified UGV-style cross-track error derivative
+    # Equivalent to the inertial-velocity expression, but kept in the
+    # compact form we want for the current high-level setup.
+    e_ct_dot = (
+        -state.u * math.sin(alpha_k - state.psi)
+        + state.v_sway * math.cos(alpha_k - state.psi)
+    )
 
-    # Eq. (27): cross-track error derivative
-    e_ct_dot = -x_n_dot * math.sin(alpha_k) + y_n_dot * math.cos(alpha_k)
+    # Desired course angle
+    chi_d = wrap_angle(alpha_k + math.atan2(-e_ct, lookahead_distance))
 
-    # Eq. (29): desired course angle chi_d
-    chi_d = alpha_k + math.atan2(-e_ct, lookahead_distance)
-    chi_d = wrap_angle(chi_d)
-
-    # Eq. (33): desired heading psi_d
-    # Using beta = 0, as done in the paper experiments
+    # Desired heading: beta = 0
     psi_d = chi_d
-    psi_d = wrap_angle(psi_d)
 
-    # Eq. (41): desired yaw rate r_d
-    # Using beta_dot = 0, as done in the paper experiments
-    r_d = -lookahead_distance / (e_ct * e_ct + lookahead_distance * lookahead_distance) * e_ct_dot
+    # Desired yaw rate: beta_dot = 0
+    denom = e_ct * e_ct + lookahead_distance * lookahead_distance
+    r_d = -(lookahead_distance / denom) * e_ct_dot
 
     return LOSGuidanceOutput(
         alpha_k=alpha_k,
