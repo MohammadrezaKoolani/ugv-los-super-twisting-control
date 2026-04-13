@@ -50,15 +50,15 @@ def simulate_step_truck_karl_style(
     tau_xc_clamped = max(-1.0, min(1.0, tau_xc))
     tau_psi_c_clamped = max(-1.0, min(1.0, tau_psi_c))
 
-    F_x_max_sim = 12000.0    # [N]
-    M_z_max_sim = 18000.0    # [N m]
+    F_x_max_sim = 85000.0     # [N]
+    M_z_max_sim = 50000.0    # [N m]
 
     tau_x_eff = tau_xc_clamped * F_x_max_sim
     tau_psi_eff = tau_psi_c_clamped * M_z_max_sim
 
     # Lumped damping for practical simulation
-    Y_v_sim = -15000.0       # [N / (m/s)]
-    N_r_sim = -80000.0       # [N m / (rad/s)]
+    Y_v_sim = -25000.0       # [N / (m/s)]
+    N_r_sim = -180000.0      # [N m / (rad/s)]
 
     # Karl-style control-oriented dynamics with lumped damping
     u_dot = (tau_x_eff + d_x + m * v * r + X_u_abs_u * u * abs(u)) / m

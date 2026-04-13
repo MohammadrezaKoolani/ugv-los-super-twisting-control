@@ -13,19 +13,19 @@ def build_default_8ws_vehicle() -> VehicleParams:
         I_z=98000.0,
         X_u_abs_u=-150.0,
 
-        lookahead_distance=6.0,
+        lookahead_distance=3.5,
         acceptance_radius=4.0,
 
         k_x=0.075,
         k_x1=0.125,
         tau_x_max=1.0,
 
-        k_r=1.0,
-        k_psi=0.1,
-        k_psi1=0.2,
+        k_r=0.4,
+        k_psi=0.04,
+        k_psi1=0.06,
         tau_psi_max=1.0,
 
-        desired_speed=5.0,
+        desired_speed=1.5,
 
         L1=2.40,
         L2=0.68,

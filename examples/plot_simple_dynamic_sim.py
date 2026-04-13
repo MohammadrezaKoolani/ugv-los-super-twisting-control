@@ -95,7 +95,6 @@ def main() -> None:
     dt = 0.01
     max_time = 60.0
     position_tolerance = 0.5
-    speed_tolerance = 0.2
     time_now = 0.0
 
     time_hist: list[float] = []
@@ -111,6 +110,7 @@ def main() -> None:
     tau_psi_hist: list[float] = []
     seg_hist: list[int] = []
     desired_speed_hist: list[float] = []
+    
 
     # 8-wheel mapped actuator histories
     steer_axle1_hist: list[float] = []
@@ -129,10 +129,10 @@ def main() -> None:
         dist_to_goal = math.hypot(state.x_n - final_wp.x, state.y_n - final_wp.y)
 
         params.desired_speed = base_desired_speed
-        if dist_to_goal < 8.0:
-            params.desired_speed = 1.0
-        if dist_to_goal < 3.0:
-            params.desired_speed = 0.3
+        # if dist_to_goal < 8.0:
+        #     params.desired_speed = 1.0
+        # if dist_to_goal < 3.0:
+        #     params.desired_speed = 0.3
 
         result = step_path_following_controller(
             state=state,
@@ -164,6 +164,7 @@ def main() -> None:
         tau_psi_hist.append(result.control.tau_psi_c)
         seg_hist.append(result.waypoint_progress.segment_index)
         desired_speed_hist.append(params.desired_speed)
+       
 
         steer_axle1_hist.append(truck_cmd.steer_axle1)
         steer_axle2_hist.append(truck_cmd.steer_axle2)
@@ -274,6 +275,16 @@ def main() -> None:
     ax7.set_title("Mapped 8-Wheel Drive Torques")
     ax7.legend()
     ax7.grid(True)
+
+    fig8 = plt.figure()
+    ax8 = fig8.add_subplot(111)
+    ax8.plot(time_hist, r_hist, label="r")
+    ax8.plot(time_hist, r_d_hist, label="r_d")
+    ax8.set_xlabel("time [s]")
+    ax8.set_ylabel("yaw rate [rad/s]")
+    ax8.set_title("Yaw-Rate Tracking")
+    ax8.legend()
+    ax8.grid(True)
 
     plt.show()
 
