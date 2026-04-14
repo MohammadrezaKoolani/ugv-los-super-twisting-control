@@ -64,8 +64,8 @@ def map_control_to_eight_wheel(
     if params.tau_x_max > 0.0:
         drive_norm = control.tau_xc / params.tau_x_max
 
-    # If no reverse is allowed:
-    drive_norm = clamp(drive_norm, -1.0, 1.0)
+    # No reverse torque command in hardware test mode
+    drive_norm = clamp(drive_norm, 0.0, 1.0)
 
     #drive_torque = drive_norm * params.max_drive_torque_per_wheel
 

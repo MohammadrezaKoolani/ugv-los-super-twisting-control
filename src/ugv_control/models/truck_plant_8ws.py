@@ -22,6 +22,29 @@ def _dual_front_ratio(params: VehicleParams) -> float:
     return (2.0 * params.L2 - params.L3 - params.L4) / denom
 
 
+def _equivalent_max_yaw_moment(params: VehicleParams) -> float:
+    """
+    Convert the available front-steering authority into an equivalent
+    maximum yaw-moment-like control level for the lumped Karl-style plant.
+    """
+    a_s = _dual_front_ratio(params)
+
+    delta1_max = params.max_steer_axle1
+    delta2_max = clamp(a_s * delta1_max, -params.max_steer_axle2, params.max_steer_axle2)
+
+    front_denom = max(params.L1 + params.L2, 1e-6)
+    delta_eff_max = (params.L1 * delta1_max + params.L2 * delta2_max) / front_denom
+
+    L_front = 0.5 * (params.L1 + params.L2)
+    L_rear = 0.5 * (abs(params.L3) + abs(params.L4))
+    L_eq = max(L_front + L_rear, 1e-6)
+
+    u_ref = max(params.desired_speed, 1.0)
+    r_ref_max = u_ref * math.tan(delta_eff_max) / L_eq
+
+    return params.I_z * r_ref_max / max(params.yaw_time_constant, 1e-6)
+
+
 def simulate_step_truck_karl_style(
     state: UGVState,
     tau_xc: float,
@@ -34,19 +57,11 @@ def simulate_step_truck_karl_style(
     command: EightWheelCommand | None = None,
 ) -> UGVState:
     """
-    Heavy-truck plant without tire stiffnesses.
+    Tire-stiffness-free, Karl-consistent, control-oriented truck plant.
 
-    This keeps the Karl-style 3-DOF state:
-        x_n, y_n, psi, u, v_sway, r
-
-    but uses an actuator-oriented truck interpretation:
-      - dual front steering angles
-      - rear wheel torques
-
-    The model is intentionally control-oriented:
-      - surge comes from summed wheel torques and quadratic drag
-      - yaw comes from an effective steering angle and first-order yaw response
-      - sway is lumped as a first-order response tied to steering
+    This is not the LPV tire model from the 2025 truck paper.
+    It is a lumped plant intended to stay compatible with Karl-style
+    LOS + super-twisting control while preserving the 8-wheel command interface.
     """
     if dt <= 0.0:
         raise ValueError("dt must be positive.")
@@ -62,23 +77,10 @@ def simulate_step_truck_karl_style(
     v = state.v_sway
     r = state.r
 
-    # Equivalent front / rear geometry for a lumped heavy-truck model
-    L_front = 0.5 * (params.L1 + params.L2)
-    L_rear = 0.5 * (abs(params.L3) + abs(params.L4))
-    L_eq = max(L_front + L_rear, 1e-6)
-
-    wheel_radius = params.wheel_radius
-    yaw_time_constant = params.yaw_time_constant
-    sway_time_constant = params.sway_time_constant
-    beta_gain = params.beta_gain
-
     # ------------------------------------------------------------
-    # Interpret actuator commands
+    # Longitudinal force from driven-wheel torques
     # ------------------------------------------------------------
     if command is not None:
-        delta1 = command.steer_axle1
-        delta2 = command.steer_axle2
-
         total_drive_torque = (
             command.torque_axle3_left
             + command.torque_axle3_right
@@ -86,17 +88,6 @@ def simulate_step_truck_karl_style(
             + command.torque_axle4_right
         )
     else:
-        # Backward-compatible fallback:
-        # interpret high-level controller outputs as normalized truck commands
-        steer_norm = 0.0
-        if params.tau_psi_max > 0.0:
-            steer_norm = tau_psi_c / params.tau_psi_max
-        steer_norm = clamp(steer_norm, -1.0, 1.0)
-
-        delta1 = steer_norm * params.max_steer_axle1
-        delta2 = _dual_front_ratio(params) * delta1
-        delta2 = clamp(delta2, -params.max_steer_axle2, params.max_steer_axle2)
-
         drive_norm = 0.0
         if params.tau_x_max > 0.0:
             drive_norm = tau_xc / params.tau_x_max
@@ -108,13 +99,17 @@ def simulate_step_truck_karl_style(
             * max(params.num_driven_wheels, 1)
         )
 
-    # Effective dual-front steering angle
-    front_denom = max(params.L1 + params.L2, 1e-6)
-    delta_eff = (params.L1 * delta1 + params.L2 * delta2) / front_denom
-    delta_eff = clamp(delta_eff, -1.2, 1.2)
+    F_x = total_drive_torque / max(params.wheel_radius, 1e-6)
 
-    # Drive torque -> total longitudinal force
-    F_x = total_drive_torque / max(wheel_radius, 1e-6)
+    # ------------------------------------------------------------
+    # Yaw control channel as a lumped generalized input
+    # ------------------------------------------------------------
+    steer_norm = 0.0
+    if params.tau_psi_max > 0.0:
+        steer_norm = tau_psi_c / params.tau_psi_max
+    steer_norm = clamp(steer_norm, -1.0, 1.0)
+
+    N_psi = steer_norm * _equivalent_max_yaw_moment(params)
 
     # ------------------------------------------------------------
     # Kinematics
@@ -124,24 +119,11 @@ def simulate_step_truck_karl_style(
     psi_dot = r
 
     # ------------------------------------------------------------
-    # Lumped dynamics
+    # Karl-style lumped dynamics with mild damping
     # ------------------------------------------------------------
-    # Surge
     u_dot = (F_x + d_x + m * v * r + X_u_abs_u * u * abs(u)) / m
-
-    # Yaw: first-order response toward kinematic yaw-rate command
-    if abs(math.cos(delta_eff)) < 1e-6:
-        r_cmd = 0.0
-    else:
-        r_cmd = u * math.tan(delta_eff) / L_eq
-
-    r_dot = (r_cmd - r) / max(yaw_time_constant, 1e-6) + d_psi / I_z
-
-    # Sway: lumped side-slip response without tire stiffnesses
-    beta_ref = math.atan(beta_gain * (L_rear / L_eq) * math.tan(delta_eff))
-    v_ref = u * math.sin(beta_ref)
-
-    v_dot = (v_ref - v) / max(sway_time_constant, 1e-6) + d_y / m
+    v_dot = (-m * u * r - (m / max(params.sway_time_constant, 1e-6)) * v + d_y) / m
+    r_dot = (N_psi - (I_z / max(params.yaw_time_constant, 1e-6)) * r + d_psi) / I_z
 
     return UGVState(
         x_n=x_n + x_dot * dt,
