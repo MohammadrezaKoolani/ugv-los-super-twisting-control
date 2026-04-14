@@ -149,7 +149,9 @@ def main() -> None:
         final_wp = path.waypoints[-1]
         dist_to_goal = math.hypot(state.x_n - final_wp.x, state.y_n - final_wp.y)
 
-        params.desired_speed = base_desired_speed
+        t_ramp = 12.0  # seconds
+        params.desired_speed = base_desired_speed * min(1.0, time_now / t_ramp)
+        # params.desired_speed = base_desired_speed
         # if dist_to_goal < 8.0:
         #     params.desired_speed = 1.0
         # if dist_to_goal < 3.0:
