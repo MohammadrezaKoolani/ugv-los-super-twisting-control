@@ -19,18 +19,18 @@ def build_default_8ws_vehicle() -> VehicleParams:
         acceptance_radius=10.0,
 
         # Surge controller
-        k_x=0.075,
-        k_x1=0.125,
-        tau_x_max=1.0,
+        k_x=0.1,
+        k_x1=0.25,
+        tau_x_max=0.7,
 
         # Heading controller
-        k_r=1.0,
-        k_psi=0.1,
-        k_psi1=0.2,
+        k_r=2.0,
+        k_psi=0.2,
+        k_psi1=0.4,
         tau_psi_max=1.0,
 
         # Operating point
-        desired_speed=1.0,
+        desired_speed=5.0,
 
         # 8-wheel geometry
         L1=2.40,

@@ -68,35 +68,35 @@ def should_stop_simulation(
     return False
 
 def main() -> None:
-    # path = Path(
-    #     waypoints=[
-    #         Waypoint(x=0.0,   y=0.0),
-    #         Waypoint(x=50.0,  y=0.0),
-    #         Waypoint(x=100.0, y=10.0),
-    #         Waypoint(x=150.0, y=10.0),
-    #         Waypoint(x=200.0, y=0.0),
-    #         Waypoint(x=250.0, y=-10.0),
-    #         Waypoint(x=300.0, y=-10.0),
-    #         Waypoint(x=350.0, y=0.0),
-    #         Waypoint(x=400.0, y=10.0),
-    #         Waypoint(x=450.0, y=10.0),
-    #         Waypoint(x=500.0, y=0.0),
-    #     ]
-    # )
-    
     path = Path(
         waypoints=[
             Waypoint(x=0.0,   y=0.0),
-            Waypoint(x=150.0,  y=0.0),
+            Waypoint(x=50.0,  y=0.0),
+            Waypoint(x=100.0, y=10.0),
+            Waypoint(x=150.0, y=10.0),
             Waypoint(x=200.0, y=0.0),
-            Waypoint(x=250.0, y=-0.0),
-            Waypoint(x=300.0, y=-0.0),
+            Waypoint(x=250.0, y=-10.0),
+            Waypoint(x=300.0, y=-10.0),
             Waypoint(x=350.0, y=0.0),
-            Waypoint(x=400.0, y=0.0),
-            Waypoint(x=450.0, y=0.0),
+            Waypoint(x=400.0, y=10.0),
+            Waypoint(x=450.0, y=10.0),
             Waypoint(x=500.0, y=0.0),
         ]
     )
+    
+    # path = Path(
+    #     waypoints=[
+    #         Waypoint(x=0.0,   y=0.0),
+    #         Waypoint(x=150.0,  y=0.0),
+    #         Waypoint(x=200.0, y=0.0),
+    #         Waypoint(x=250.0, y=-0.0),
+    #         Waypoint(x=300.0, y=-0.0),
+    #         Waypoint(x=350.0, y=0.0),
+    #         Waypoint(x=400.0, y=0.0),
+    #         Waypoint(x=450.0, y=0.0),
+    #         Waypoint(x=500.0, y=0.0),
+    #     ]
+    # )
 
     # Use the heavy 8-wheel truck parameters
     params = build_default_8ws_vehicle()
