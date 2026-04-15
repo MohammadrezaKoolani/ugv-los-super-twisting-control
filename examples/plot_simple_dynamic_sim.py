@@ -96,29 +96,91 @@ def build_smooth_path():
         waypoints=[Waypoint(float(xi), float(yi)) for xi, yi in zip(x_s, y_s)]
     )
 
+def build_piecewise_path_with_spacing(spacing_m: float = 25.0) -> Path:
+    """
+    Build the same sharp-corner path, but insert extra waypoints so that
+    the distance between consecutive waypoints is approximately spacing_m.
+
+    The original corner points are always preserved.
+    """
+    if spacing_m <= 0.0:
+        raise ValueError("spacing_m must be positive.")
+
+    corner_points = [
+        (0.0, 0.0),
+        (100.0, 0.0),
+        (200.0, 50.0),
+        (300.0, 50.0),
+        (400.0, 0.0),
+        (500.0, -50.0),
+        (600.0, -50.0),
+        (700.0, 0.0),
+        (800.0, 50.0),
+        (900.0, 50.0),
+        (1000.0, 0.0),
+    ]
+
+    waypoints: list[Waypoint] = [Waypoint(x=corner_points[0][0], y=corner_points[0][1])]
+
+    for i in range(len(corner_points) - 1):
+        x0, y0 = corner_points[i]
+        x1, y1 = corner_points[i + 1]
+
+        dx = x1 - x0
+        dy = y1 - y0
+        segment_length = math.hypot(dx, dy)
+
+        # Number of equal sub-segments so that each is <= spacing_m
+        n_segments = max(1, math.ceil(segment_length / spacing_m))
+
+        for k in range(1, n_segments + 1):
+            t = k / n_segments
+            x = x0 + t * dx
+            y = y0 + t * dy
+            waypoints.append(Waypoint(x=x, y=y))
+
+    return Path(waypoints=waypoints)
+
+
 def main() -> None:
-    path = Path(
-        waypoints=[
-            Waypoint(x=0.0,   y=0.0),
-            Waypoint(x=50.0,  y=0.0),
-            Waypoint(x=100.0, y=10.0),
-            Waypoint(x=150.0, y=10.0),
-            Waypoint(x=200.0, y=0.0),
-            Waypoint(x=250.0, y=-10.0),
-            Waypoint(x=300.0, y=-10.0),
-            Waypoint(x=350.0, y=0.0),
-            Waypoint(x=400.0, y=10.0),
-            Waypoint(x=450.0, y=10.0),
-            Waypoint(x=500.0, y=0.0),
-        ]
-    )
-    
+
+    #path = build_piecewise_path_with_spacing(spacing_m=12.5)
     # path = build_smooth_path()
 
+    path = Path(
+    waypoints=[
+        Waypoint(x=0.0,    y=0.0),
+        Waypoint(x=100.0,  y=0.0),
+        Waypoint(x=140.0,  y=8.0),
+        Waypoint(x=170.0,  y=22.0),
+        Waypoint(x=200.0,  y=38.0),
+        Waypoint(x=230.0,  y=47.0),
+        Waypoint(x=300.0,  y=50.0),
+
+        Waypoint(x=340.0,  y=47.0),
+        Waypoint(x=370.0,  y=35.0),
+        Waypoint(x=400.0,  y=15.0),
+        Waypoint(x=450.0,  y=-20.0),
+        Waypoint(x=500.0,  y=-45.0),
+        Waypoint(x=600.0,  y=-50.0),
+
+        Waypoint(x=640.0,  y=-47.0),
+        Waypoint(x=680.0,  y=-30.0),
+        Waypoint(x=720.0,  y=-5.0),
+        Waypoint(x=760.0,  y=22.0),
+        Waypoint(x=800.0,  y=42.0),
+        Waypoint(x=850.0,  y=50.0),
+        Waypoint(x=900.0,  y=50.0),
+
+        Waypoint(x=940.0,  y=45.0),
+        Waypoint(x=970.0,  y=28.0),
+        Waypoint(x=1000.0, y=0.0),
+    ]
+)
 
     # Use the heavy 8-wheel truck parameters
     # The wheelbase can be changed from the datasheet: 2350, 2600, 2850, 3100, 3600
-    params = build_default_8ws_vehicle(wheelbase_x_mm=2850, payload_ratio=0.0)
+    params = build_default_8ws_vehicle(wheelbase_x_mm=3600, payload_ratio=0.0)
 
     state = UGVState(
         x_n=0.0,
