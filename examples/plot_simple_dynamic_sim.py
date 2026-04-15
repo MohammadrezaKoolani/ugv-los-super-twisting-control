@@ -99,7 +99,7 @@ def main() -> None:
     # )
 
     # Use the heavy 8-wheel truck parameters
-    params = build_default_8ws_vehicle()
+    params = build_default_8ws_vehicle(wheelbase_x_mm=2850, loaded=False)
 
     state = UGVState(
         x_n=0.0,
