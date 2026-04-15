@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import splprep, splev
 
-
 from ugv_control.controllers.manager import step_path_following_controller
 from ugv_control.interfaces.eight_wheel_mapper import map_control_to_eight_wheel
 from ugv_control.models.states import ControllerState, UGVState, WaypointProgress
@@ -231,7 +230,18 @@ def main() -> None:
         dist_to_goal = math.hypot(state.x_n - final_wp.x, state.y_n - final_wp.y)
 
         t_ramp = 12.0  # seconds
-        params.desired_speed = base_desired_speed * min(1.0, time_now / t_ramp)
+        speed_cmd = base_desired_speed * min(1.0, time_now / t_ramp)
+
+        # start slowing down before the final waypoint
+        stop_distance = 60.0   # [m] start braking here
+        full_stop_distance = 1.0  # [m] command zero speed very close to goal
+
+        if dist_to_goal <= stop_distance:
+            slowdown_ratio = (dist_to_goal - full_stop_distance) / (stop_distance - full_stop_distance)
+            slowdown_ratio = max(0.0, min(1.0, slowdown_ratio))
+            speed_cmd *= slowdown_ratio
+
+        params.desired_speed = speed_cmd
         # params.desired_speed = base_desired_speed
         # if dist_to_goal < 8.0:
         #     params.desired_speed = 1.0
