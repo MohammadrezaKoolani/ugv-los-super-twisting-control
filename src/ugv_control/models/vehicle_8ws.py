@@ -5,10 +5,6 @@ import math
 from ugv_control.models.vehicle_base import VehicleParams
 
 
-# ---------------------------------------------------------------------
-# Astra HDX 8x4 datasheet-backed chassis variants
-# X is the spacing between axle 2 and axle 3 [mm]
-# ---------------------------------------------------------------------
 _HDX_VARIANTS = {
     2350: {
         "tare_kg": 11650.0,
@@ -52,32 +48,16 @@ _HDX_VARIANTS = {
     },
 }
 
-# ---------------------------------------------------------------------
-# Fixed geometry visible in the HDX datasheet sketch
-# ---------------------------------------------------------------------
 _AXLE12_M = 1.900
 _AXLE34_M = 1.450
 _TOTAL_WIDTH_M = 2.550
-_FRONT_TRACK_EST_M = 2.050  # front-view drawing width
-_FRONT_OVERHANG_M = 1.550   # not directly used in dynamics
-
-# ---------------------------------------------------------------------
-# Capacities / estimates
-# ---------------------------------------------------------------------
+_FRONT_TRACK_EST_M = 2.050
 _GVW_KG = 50000.0
+_REAR_CAPACITY_KG = 32000.0
 _FRONT_CAPACITY_STD_KG = 16000.0
 _FRONT_CAPACITY_OPT_KG = 18000.0
-_REAR_CAPACITY_KG = 32000.0
-
-# Effective rolling radius estimate for 13R22.5
 _WHEEL_RADIUS_M = 0.525
-
-# Drivetrain: rear tandem driven, 4 driven wheels
 _NUM_DRIVEN_WHEELS = 4
-
-# Cursor 13 engine peak torque from datasheet: 2200/2300/2500 Nm
-# Wheel torque is after transmission and axle reduction, so we keep this
-# as a controller-side estimate for the simplified plant.
 _MAX_DRIVE_TORQUE_PER_WHEEL_EST = 6000.0
 
 
@@ -86,16 +66,10 @@ def _clamp(value: float, lower: float, upper: float) -> float:
 
 
 def _yaw_inertia_box_estimate(mass_kg: float, length_m: float, width_m: float) -> float:
-    """
-    First-pass yaw inertia estimate around vertical axis.
-    """
     return (mass_kg / 12.0) * (length_m**2 + width_m**2)
 
 
 def _axle_positions_from_x(wheelbase_x_mm: int) -> list[float]:
-    """
-    Axle positions measured from axle 1 [m].
-    """
     x23 = wheelbase_x_mm / 1000.0
     return [
         0.0,
@@ -106,9 +80,6 @@ def _axle_positions_from_x(wheelbase_x_mm: int) -> list[float]:
 
 
 def _tandem_midpoints(axle_positions: list[float]) -> tuple[float, float]:
-    """
-    Midpoint of front tandem (axles 1,2) and rear tandem (axles 3,4).
-    """
     front_mid = 0.5 * (axle_positions[0] + axle_positions[1])
     rear_mid = 0.5 * (axle_positions[2] + axle_positions[3])
     return front_mid, rear_mid
@@ -119,10 +90,6 @@ def _cg_from_group_reactions(
     rear_group_load_kg: float,
     axle_positions: list[float],
 ) -> float:
-    """
-    Estimate longitudinal CG using front/rear tandem group reactions.
-    Returns CG position measured from axle 1 [m].
-    """
     total = front_group_load_kg + rear_group_load_kg
     if total <= 0.0:
         raise ValueError("Total load must be positive.")
@@ -132,48 +99,60 @@ def _cg_from_group_reactions(
     if wheelbase_groups <= 0.0:
         raise ValueError("Rear tandem midpoint must be behind front tandem midpoint.")
 
-    # Static moment equilibrium about front tandem midpoint
     return front_mid + (rear_group_load_kg / total) * wheelbase_groups
 
 
 def _estimate_loaded_group_split(
+    payload_ratio: float,
+    tare_kg: float,
+    front_tare_kg: float,
+    rear_tare_kg: float,
     use_optional_18t_front: bool,
-) -> tuple[float, float]:
+) -> tuple[float, float, float]:
     """
-    Estimate loaded front/rear tandem group loads from datasheet capacities.
+    Interpolate front/rear axle-group loads from unloaded to fully loaded.
 
-    Standard front capacity gives 16t + 32t = 48t.
-    Optional front capacity gives 18t + 32t = 50t, which matches GVW.
+    payload_ratio:
+        0.0 -> unloaded
+        1.0 -> fully loaded
     """
-    front_loaded = _FRONT_CAPACITY_OPT_KG if use_optional_18t_front else _FRONT_CAPACITY_STD_KG
-    rear_loaded = _REAR_CAPACITY_KG
-    return front_loaded, rear_loaded
+    payload_ratio = _clamp(payload_ratio, 0.0, 1.0)
+
+    payload_max_kg = _GVW_KG - tare_kg
+    payload_kg = payload_ratio * payload_max_kg
+    total_mass_kg = tare_kg + payload_kg
+
+    front_full_kg = _FRONT_CAPACITY_OPT_KG if use_optional_18t_front else _FRONT_CAPACITY_STD_KG
+    rear_full_kg = _REAR_CAPACITY_KG
+
+    # Added load from tare to full-load estimate
+    front_payload_share_kg = max(0.0, front_full_kg - front_tare_kg)
+    rear_payload_share_kg = max(0.0, rear_full_kg - rear_tare_kg)
+    total_payload_share_kg = front_payload_share_kg + rear_payload_share_kg
+
+    if total_payload_share_kg <= 1e-9:
+        front_group_kg = front_tare_kg
+        rear_group_kg = rear_tare_kg + payload_kg
+        return total_mass_kg, front_group_kg, rear_group_kg
+
+    front_payload_fraction = front_payload_share_kg / total_payload_share_kg
+    rear_payload_fraction = rear_payload_share_kg / total_payload_share_kg
+
+    front_group_kg = front_tare_kg + front_payload_fraction * payload_kg
+    rear_group_kg = rear_tare_kg + rear_payload_fraction * payload_kg
+
+    return total_mass_kg, front_group_kg, rear_group_kg
 
 
 def _steering_limits_from_turning_diameter(
     wheelbase_x_mm: int,
     turning_diameter_walls_m: float,
 ) -> tuple[float, float]:
-    """
-    Estimate front steering limits from wall-to-wall turning diameter.
-
-    This is only an equivalent-control estimate for the simplified plant.
-    It is not a full mechanical steering-geometry reconstruction.
-    """
     x23 = wheelbase_x_mm / 1000.0
     radius_m = 0.5 * turning_diameter_walls_m
-
-    # Use axle2-axle3 spacing as the primary steering wheelbase measure.
     delta1 = math.atan2(x23, radius_m)
-
-    # Inflate slightly because real dual-front steering can achieve more
-    # than a simple bicycle estimate suggests.
     delta1 *= 1.20
-
-    # Keep within a realistic heavy-truck steering range
     delta1 = _clamp(delta1, 0.35, 0.55)
-
-    # Second steering axle is usually smaller than first
     delta2 = 0.75 * delta1
     return delta1, delta2
 
@@ -182,17 +161,11 @@ def _signed_axle_distances_from_cg(
     axle_positions: list[float],
     x_cg_from_axle1_m: float,
 ) -> tuple[float, float, float, float]:
-    """
-    Return distances from CG in the sign convention used by your code:
-    front axles positive, rear axles negative.
-    """
     L1 = x_cg_from_axle1_m - axle_positions[0]
     L2 = x_cg_from_axle1_m - axle_positions[1]
     L3 = x_cg_from_axle1_m - axle_positions[2]
     L4 = x_cg_from_axle1_m - axle_positions[3]
 
-    # Enforce front positive / rear negative. If estimate lands outside
-    # axle2-axle3 interval, fall back to the midpoint between axle2 and axle3.
     if not (L1 > 0.0 and L2 > 0.0 and L3 < 0.0 and L4 < 0.0):
         midpoint_23 = 0.5 * (axle_positions[1] + axle_positions[2])
         L1 = midpoint_23 - axle_positions[0]
@@ -205,30 +178,17 @@ def _signed_axle_distances_from_cg(
 
 def build_default_8ws_vehicle(
     wheelbase_x_mm: int = 2350,
-    loaded: bool = True,
+    payload_ratio: float = 1.0,
     use_optional_18t_front: bool = True,
     desired_speed_mps: float = 5.0,
 ) -> VehicleParams:
     """
-    Build an Astra HDX 8x4 parameter set from chassis X and load state.
+    Build an Astra HDX 8x4 parameter set from chassis X and payload ratio.
 
-    Parameters
-    ----------
-    wheelbase_x_mm:
-        Chassis parameter X in mm. Must be one of:
-        2350, 2600, 2850, 3100, 3600
-
-    loaded:
-        True  -> loaded truck estimate
-        False -> unloaded truck estimate using datasheet tare split
-
-    use_optional_18t_front:
-        Only affects loaded=True.
-        True  -> loaded split estimated from 18t front + 32t rear capacities
-        False -> loaded split estimated from 16t front + 32t rear capacities
-
-    desired_speed_mps:
-        Controller operating speed.
+    payload_ratio:
+        0.0 -> unloaded
+        1.0 -> fully loaded
+        0.5 -> half payload
     """
     if wheelbase_x_mm not in _HDX_VARIANTS:
         raise ValueError(
@@ -236,21 +196,22 @@ def build_default_8ws_vehicle(
             f"Choose one of {sorted(_HDX_VARIANTS.keys())}"
         )
 
+    payload_ratio = _clamp(payload_ratio, 0.0, 1.0)
+
     variant = _HDX_VARIANTS[wheelbase_x_mm]
     axle_positions = _axle_positions_from_x(wheelbase_x_mm)
 
-    # ---------------------------------------------------------------
-    # Mass and CG estimate
-    # ---------------------------------------------------------------
-    if loaded:
-        m = _GVW_KG
-        front_group_kg, rear_group_kg = _estimate_loaded_group_split(
-            use_optional_18t_front=use_optional_18t_front
-        )
-    else:
-        m = variant["tare_kg"]
-        front_group_kg = variant["front_tare_kg"]
-        rear_group_kg = variant["rear_tare_kg"]
+    tare_kg = variant["tare_kg"]
+    front_tare_kg = variant["front_tare_kg"]
+    rear_tare_kg = variant["rear_tare_kg"]
+
+    m, front_group_kg, rear_group_kg = _estimate_loaded_group_split(
+        payload_ratio=payload_ratio,
+        tare_kg=tare_kg,
+        front_tare_kg=front_tare_kg,
+        rear_tare_kg=rear_tare_kg,
+        use_optional_18t_front=use_optional_18t_front,
+    )
 
     x_cg_from_axle1_m = _cg_from_group_reactions(
         front_group_load_kg=front_group_kg,
@@ -263,36 +224,22 @@ def build_default_8ws_vehicle(
         x_cg_from_axle1_m=x_cg_from_axle1_m,
     )
 
-    # ---------------------------------------------------------------
-    # Steering estimate from turning diameter
-    # ---------------------------------------------------------------
     max_steer_axle1, max_steer_axle2 = _steering_limits_from_turning_diameter(
         wheelbase_x_mm=wheelbase_x_mm,
         turning_diameter_walls_m=variant["turning_diameter_walls_m"],
     )
 
-    # ---------------------------------------------------------------
-    # Yaw inertia estimate
-    # ---------------------------------------------------------------
     I_z = _yaw_inertia_box_estimate(
         mass_kg=m,
         length_m=variant["overall_length_m"],
         width_m=_TOTAL_WIDTH_M,
     )
 
-    # ---------------------------------------------------------------
-    # Simplified-plant tuning
-    # ---------------------------------------------------------------
-    if loaded:
-        X_u_abs_u = -450.0
-        yaw_time_constant = 2.8
-        sway_time_constant = 3.3
-        beta_gain = 0.32
-    else:
-        X_u_abs_u = -350.0
-        yaw_time_constant = 2.5
-        sway_time_constant = 3.0
-        beta_gain = 0.35
+    # Smooth interpolation of simplified plant parameters with payload
+    X_u_abs_u = -350.0 - 100.0 * payload_ratio
+    yaw_time_constant = 2.5 + 0.3 * payload_ratio
+    sway_time_constant = 3.0 + 0.3 * payload_ratio
+    beta_gain = 0.35 - 0.03 * payload_ratio
 
     return VehicleParams(
         # Lumped vehicle parameters
@@ -301,7 +248,7 @@ def build_default_8ws_vehicle(
         X_u_abs_u=X_u_abs_u,
 
         # Guidance
-        lookahead_distance=20.0,
+        lookahead_distance=25.0,
         acceptance_radius=12.0,
 
         # Surge controller
@@ -310,7 +257,7 @@ def build_default_8ws_vehicle(
         tau_x_max=0.65,
 
         # Heading controller
-        k_r=3.0,
+        k_r=2.0,
         k_psi=0.2,
         k_psi1=0.4,
         tau_psi_max=1.0,
