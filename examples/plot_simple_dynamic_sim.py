@@ -224,7 +224,7 @@ def main() -> None:
     #tore the original desired speed once
     base_desired_speed = params.desired_speed
 
-    while time_now <= max_time:
+    while True:
 
         final_wp = path.waypoints[-1]
         dist_to_goal = math.hypot(state.x_n - final_wp.x, state.y_n - final_wp.y)
