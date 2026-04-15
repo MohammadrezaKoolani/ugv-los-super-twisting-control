@@ -248,8 +248,8 @@ def build_default_8ws_vehicle(
         X_u_abs_u=X_u_abs_u,
 
         # Guidance
-        lookahead_distance=25.0,
-        acceptance_radius=12.0,
+        lookahead_distance=18.0,
+        acceptance_radius=10.0,
 
         # Surge controller
         k_x=0.07,
@@ -257,7 +257,7 @@ def build_default_8ws_vehicle(
         tau_x_max=0.65,
 
         # Heading controller
-        k_r=2.0,
+        k_r=3.0,
         k_psi=0.2,
         k_psi1=0.4,
         tau_psi_max=1.0,
