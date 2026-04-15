@@ -65,9 +65,128 @@ def _clamp(value: float, lower: float, upper: float) -> float:
     return max(lower, min(upper, value))
 
 
-def _yaw_inertia_box_estimate(mass_kg: float, length_m: float, width_m: float) -> float:
-    return (mass_kg / 12.0) * (length_m**2 + width_m**2)
+# def _yaw_inertia_box_estimate(mass_kg: float, length_m: float, width_m: float) -> float:
+#     return (mass_kg / 12.0) * (length_m**2 + width_m**2)
 
+def _yaw_inertia_box_estimate(
+    total_mass_kg: float,
+    tare_kg: float,
+    front_tare_kg: float,
+    rear_tare_kg: float,
+    overall_length_m: float,
+    width_m: float,
+    x_cg_from_axle1_m: float,
+    wheelbase_x_mm: int,
+) -> float:
+    """
+    Estimate yaw inertia using 3 boxes:
+      1) front module (cab + engine + front structure)
+      2) rear chassis / running gear
+      3) payload / body mass
+
+    Important:
+    - We SUM the inertias; we do not average them.
+    - Box 3 goes to zero when payload is zero.
+    - The estimate is around the vehicle yaw axis through the current CG.
+
+    Coordinates are measured from axle 1 along vehicle length.
+    """
+    # -----------------------------
+    # Known geometry from your model
+    # -----------------------------
+    x12 = _AXLE12_M
+    x23 = wheelbase_x_mm / 1000.0
+    x34 = _AXLE34_M
+
+    axle1_x = 0.0
+    axle2_x = x12
+    axle3_x = x12 + x23
+    axle4_x = x12 + x23 + x34
+
+    front_bumper_x = -1.550  # from datasheet sketch
+    rear_end_x = overall_length_m - 1.550
+
+    # ---------------------------------------------------------
+    # Masses of the 3 boxes
+    # ---------------------------------------------------------
+    payload_mass_kg = max(0.0, total_mass_kg - tare_kg)
+
+    # Box 1 and 2 together represent the unloaded truck.
+    # Use the known unloaded front/rear group masses as first estimate.
+    #
+    # Box 1: front truck module
+    # Slightly larger than front axle-group mass because cab/engine mass
+    # sits ahead of the front tandem.
+    m1 = front_tare_kg + 0.10 * rear_tare_kg
+
+    # Keep it within a sensible range
+    m1 = _clamp(m1, 0.45 * tare_kg, 0.70 * tare_kg)
+
+    # Box 2: remaining unloaded chassis / rear running gear
+    m2 = max(0.0, tare_kg - m1)
+
+    # Box 3: payload / dump body content
+    m3 = payload_mass_kg
+
+    # ---------------------------------------------------------
+    # Geometric extents of the 3 boxes
+    # ---------------------------------------------------------
+    # Box 1: front truck block
+    b1_x0 = front_bumper_x
+    b1_x1 = axle2_x + 0.35
+
+    # Box 2: rear chassis block
+    b2_x0 = b1_x1
+    b2_x1 = rear_end_x
+
+    # Box 3: payload block above chassis
+    # Starts a little behind axle 2 and ends a little before rear end.
+    b3_x0 = axle2_x + 0.20
+    b3_x1 = rear_end_x - 0.25
+
+    # Prevent negative or tiny lengths
+    l1 = max(0.5, b1_x1 - b1_x0)
+    l2 = max(0.5, b2_x1 - b2_x0)
+    l3 = max(0.5, b3_x1 - b3_x0)
+
+    # Widths
+    # Front truck and rear chassis span nearly full truck width.
+    # Payload block is slightly narrower than total vehicle width.
+    w1 = width_m
+    w2 = 0.90 * width_m
+    w3 = 0.88 * width_m
+
+    # ---------------------------------------------------------
+    # Box centroids along x
+    # ---------------------------------------------------------
+    # Box 1 centroid is biased a bit forward because cab/engine mass is forward.
+    x1 = 0.55 * b1_x0 + 0.45 * b1_x1
+
+    # Box 2 centroid is roughly centered in the rear chassis region.
+    x2 = 0.5 * (b2_x0 + b2_x1)
+
+    # Box 3 centroid is centered on the payload bed region.
+    x3 = 0.5 * (b3_x0 + b3_x1)
+
+    # ---------------------------------------------------------
+    # Inertia about each box centroid
+    # ---------------------------------------------------------
+    I1_c = (m1 / 12.0) * (l1**2 + w1**2)
+    I2_c = (m2 / 12.0) * (l2**2 + w2**2)
+    I3_c = (m3 / 12.0) * (l3**2 + w3**2)
+
+    # ---------------------------------------------------------
+    # Parallel-axis theorem to current vehicle CG
+    # ---------------------------------------------------------
+    d1 = x1 - x_cg_from_axle1_m
+    d2 = x2 - x_cg_from_axle1_m
+    d3 = x3 - x_cg_from_axle1_m
+
+    I1 = I1_c + m1 * d1**2
+    I2 = I2_c + m2 * d2**2
+    I3 = I3_c + m3 * d3**2
+
+    return I1 + I2 + I3
 
 def _axle_positions_from_x(wheelbase_x_mm: int) -> list[float]:
     x23 = wheelbase_x_mm / 1000.0
@@ -229,12 +348,21 @@ def build_default_8ws_vehicle(
         turning_diameter_walls_m=variant["turning_diameter_walls_m"],
     )
 
+    # I_z = _yaw_inertia_box_estimate(
+    #     mass_kg=m,
+    #     length_m=variant["overall_length_m"],
+    #     width_m=_TOTAL_WIDTH_M,
+    # )
     I_z = _yaw_inertia_box_estimate(
-        mass_kg=m,
-        length_m=variant["overall_length_m"],
+        total_mass_kg=m,
+        tare_kg=tare_kg,
+        front_tare_kg=front_tare_kg,
+        rear_tare_kg=rear_tare_kg,
+        overall_length_m=variant["overall_length_m"],
         width_m=_TOTAL_WIDTH_M,
-    )
-
+        x_cg_from_axle1_m=x_cg_from_axle1_m,
+        wheelbase_x_mm=wheelbase_x_mm,
+)
     # Smooth interpolation of simplified plant parameters with payload
     X_u_abs_u = -350.0 - 100.0 * payload_ratio
     yaw_time_constant = 2.5 + 0.3 * payload_ratio

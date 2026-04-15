@@ -3,6 +3,9 @@ from __future__ import annotations
 import math
 
 import matplotlib.pyplot as plt
+import numpy as np
+from scipy.interpolate import splprep, splev
+
 
 from ugv_control.controllers.manager import step_path_following_controller
 from ugv_control.interfaces.eight_wheel_mapper import map_control_to_eight_wheel
@@ -67,6 +70,32 @@ def should_stop_simulation(
 
     return False
 
+def build_smooth_path():
+    pts = np.array([
+        [0.0,    0.0],
+        [100.0,  0.0],
+        [200.0,  50.0],
+        [300.0,  50.0],
+        [400.0,  0.0],
+        [500.0, -50.0],
+        [600.0, -50.0],
+        [700.0,  0.0],
+        [800.0,  50.0],
+        [900.0,  50.0],
+        [1000.0, 0.0],
+    ])
+
+    x = pts[:, 0]
+    y = pts[:, 1]
+
+    tck, _ = splprep([x, y], s=200.0, k=3)
+    u_fine = np.linspace(0.0, 1.0, 120)
+    x_s, y_s = splev(u_fine, tck)
+
+    return Path(
+        waypoints=[Waypoint(float(xi), float(yi)) for xi, yi in zip(x_s, y_s)]
+    )
+
 def main() -> None:
     path = Path(
         waypoints=[
@@ -84,21 +113,11 @@ def main() -> None:
         ]
     )
     
-    # path = Path(
-    #     waypoints=[
-    #         Waypoint(x=0.0,   y=0.0),
-    #         Waypoint(x=150.0,  y=0.0),
-    #         Waypoint(x=200.0, y=0.0),
-    #         Waypoint(x=250.0, y=-0.0),
-    #         Waypoint(x=300.0, y=-0.0),
-    #         Waypoint(x=350.0, y=0.0),
-    #         Waypoint(x=400.0, y=0.0),
-    #         Waypoint(x=450.0, y=0.0),
-    #         Waypoint(x=500.0, y=0.0),
-    #     ]
-    # )
+    # path = build_smooth_path()
+
 
     # Use the heavy 8-wheel truck parameters
+    # The wheelbase can be changed from the datasheet: 2350, 2600, 2850, 3100, 3600
     params = build_default_8ws_vehicle(wheelbase_x_mm=2850, payload_ratio=0.0)
 
     state = UGVState(
