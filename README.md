@@ -26,8 +26,7 @@ This project currently includes:
 - super-twisting surge controller
 - super-twisting heading controller
 - controller manager that connects all modules
-- parameter sets for two vehicle types:
-  - 4-wheel vehicle
+- parameter sets for vehicle type:
   - 8-wheel vehicle
 - basic tests
 - example scripts for:
@@ -217,22 +216,7 @@ It is not yet a full physical implementation of the paper’s complete 3-DOF veh
 
 ## Simulation notes
 
-There are currently three example scripts related to simulation and visualization:
-
-### 1. `simple_kinematic_sim.py`
-
-A very lightweight simulation used for early controller structure checks.
-
-### 2. `simple_dynamic_sim.py`
-
-A more useful simplified simulation that uses command-level first-order response for:
-
-- surge speed
-- yaw rate
-
-This is still not the full plant model from the paper, but it is much more suitable for testing path-following behavior.
-
-### 3. `plot_simple_dynamic_sim.py`
+### `plot_simple_dynamic_sim.py`
 
 Runs the simplified dynamic simulation and plots:
 
@@ -385,14 +369,4 @@ Planned or possible future improvements include:
 - human/shared-control extension from the paper
 
 ---
-
-## Important note
-
-This project is currently a clean controller-focused implementation, not a validated full reproduction of the experimental platform in the paper.
-
-It should be viewed as:
-
-- a structured implementation of the main path-following control logic
-- a base for further simulation, tuning, and deployment work
-- a reusable controller architecture for multiple UGV platforms
 
