@@ -26,8 +26,7 @@ This project currently includes:
 - super-twisting surge controller
 - super-twisting heading controller
 - controller manager that connects all modules
-- parameter sets for two vehicle types:
-  - 4-wheel vehicle
+- parameter sets for vehicle type:
   - 8-wheel vehicle
 - basic tests
 - example scripts for:
