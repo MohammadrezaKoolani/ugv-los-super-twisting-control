@@ -217,22 +217,7 @@ It is not yet a full physical implementation of the paper’s complete 3-DOF veh
 
 ## Simulation notes
 
-There are currently three example scripts related to simulation and visualization:
-
-### 1. `simple_kinematic_sim.py`
-
-A very lightweight simulation used for early controller structure checks.
-
-### 2. `simple_dynamic_sim.py`
-
-A more useful simplified simulation that uses command-level first-order response for:
-
-- surge speed
-- yaw rate
-
-This is still not the full plant model from the paper, but it is much more suitable for testing path-following behavior.
-
-### 3. `plot_simple_dynamic_sim.py`
+### `plot_simple_dynamic_sim.py`
 
 Runs the simplified dynamic simulation and plots:
 
