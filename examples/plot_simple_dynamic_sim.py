@@ -143,39 +143,39 @@ def build_piecewise_path_with_spacing(spacing_m: float = 25.0) -> Path:
 
 def main() -> None:
 
-    #path = build_piecewise_path_with_spacing(spacing_m=12.5)
+    path = build_piecewise_path_with_spacing(spacing_m=12.5)
     # path = build_smooth_path()
 
-    path = Path(
-    waypoints=[
-        Waypoint(x=0.0,    y=0.0),
-        Waypoint(x=100.0,  y=0.0),
-        Waypoint(x=140.0,  y=8.0),
-        Waypoint(x=170.0,  y=22.0),
-        Waypoint(x=200.0,  y=38.0),
-        Waypoint(x=230.0,  y=47.0),
-        Waypoint(x=300.0,  y=50.0),
+#     path = Path(
+#     waypoints=[
+#         Waypoint(x=0.0,    y=0.0),
+#         Waypoint(x=100.0,  y=0.0),
+#         Waypoint(x=140.0,  y=8.0),
+#         Waypoint(x=170.0,  y=22.0),
+#         Waypoint(x=200.0,  y=38.0),
+#         Waypoint(x=230.0,  y=47.0),
+#         Waypoint(x=300.0,  y=50.0),
 
-        Waypoint(x=340.0,  y=47.0),
-        Waypoint(x=370.0,  y=35.0),
-        Waypoint(x=400.0,  y=15.0),
-        Waypoint(x=450.0,  y=-20.0),
-        Waypoint(x=500.0,  y=-45.0),
-        Waypoint(x=600.0,  y=-50.0),
+#         Waypoint(x=340.0,  y=47.0),
+#         Waypoint(x=370.0,  y=35.0),
+#         Waypoint(x=400.0,  y=15.0),
+#         Waypoint(x=450.0,  y=-20.0),
+#         Waypoint(x=500.0,  y=-45.0),
+#         Waypoint(x=600.0,  y=-50.0),
 
-        Waypoint(x=640.0,  y=-47.0),
-        Waypoint(x=680.0,  y=-30.0),
-        Waypoint(x=720.0,  y=-5.0),
-        Waypoint(x=760.0,  y=22.0),
-        Waypoint(x=800.0,  y=42.0),
-        Waypoint(x=850.0,  y=50.0),
-        Waypoint(x=900.0,  y=50.0),
+#         Waypoint(x=640.0,  y=-47.0),
+#         Waypoint(x=680.0,  y=-30.0),
+#         Waypoint(x=720.0,  y=-5.0),
+#         Waypoint(x=760.0,  y=22.0),
+#         Waypoint(x=800.0,  y=42.0),
+#         Waypoint(x=850.0,  y=50.0),
+#         Waypoint(x=900.0,  y=50.0),
 
-        Waypoint(x=940.0,  y=45.0),
-        Waypoint(x=970.0,  y=28.0),
-        Waypoint(x=1000.0, y=0.0),
-    ]
-)
+#         Waypoint(x=940.0,  y=45.0),
+#         Waypoint(x=970.0,  y=28.0),
+#         Waypoint(x=1000.0, y=0.0),
+#     ]
+# )
 
     # Use the heavy 8-wheel truck parameters
     # The wheelbase can be changed from the datasheet: 2350, 2600, 2850, 3100, 3600
