@@ -371,13 +371,3 @@ Planned or possible future improvements include:
 
 ---
 
-## Important note
-
-This project is currently a clean controller-focused implementation, not a validated full reproduction of the experimental platform in the paper.
-
-It should be viewed as:
-
-- a structured implementation of the main path-following control logic
-- a base for further simulation, tuning, and deployment work
-- a reusable controller architecture for multiple UGV platforms
-
